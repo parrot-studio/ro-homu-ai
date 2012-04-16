@@ -42,8 +42,6 @@ SKILL_AREA_CMD_ST				= 11
 FOLLOW_CMD_ST				= 12
 ----------------------------
 
-
-
 ------------------------------------------
 -- global variable
 ------------------------------------------
@@ -92,7 +90,7 @@ FleetModeCounter = 0	 -- フリットムーブカウンター
 ------------- command process  ---------------------
 
 function	OnMOVE_CMD (x,y)
-	
+
 	TraceAI ("OnMOVE_CMD")
 
 	if ( x == MyDestX and y == MyDestY and MOTION_MOVE == GetV(V_MOTION,MyID)) then
@@ -103,11 +101,11 @@ function	OnMOVE_CMD (x,y)
 	if (math.abs(x-curX)+math.abs(y-curY) > 15) then		-- 目的地が一定距離以上なら (サーバーで遠距離は処理しないため)
 		List.pushleft (ResCmdList,{MOVE_CMD,x,y})			-- 元の目的地への移動を予約する
 		x = math.floor((x+curX)/2)							-- 中間地点へ移動する
-		y = math.floor((y+curY)/2)							-- 
+		y = math.floor((y+curY)/2)							--
 	end
 
-	Move (MyID,x,y)	
-	
+	Move (MyID,x,y)
+
 	MyState = MOVE_CMD_ST
 	MyDestX = x
 	MyDestY = y
