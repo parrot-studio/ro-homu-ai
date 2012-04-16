@@ -553,8 +553,9 @@ Homunculus.new = function(id)
       return
     end
 
-    -- 主人から離れすぎた
-    if self:isOverFollowDistance() then
+    -- やることがなければ主人の元に戻る
+    if (not self:isAroundOwner()) then
+      self:moveToOwnerPosition()
       self:stateToFollow()
       self.putsDebug("IDLE_ST -> FOLLOW_ST")
       return
