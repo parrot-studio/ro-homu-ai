@@ -95,10 +95,19 @@ Homunculus.new = function(id)
   -- 主人のそばにいる？
   this.isAroundOwner = function(self)
     local d = self:distanceForOwner()
-    if (d > this.aroundDistance or d < 0) then
+    if (d < 0 or d > this.aroundDistance) then
       return false
     end
     return true
+  end
+
+  -- 主人と離れすぎか？
+  this.isOverFollowDistance = function(self)
+    local d = self:distanceForOwner()
+    if (d < 0 or d > self.followDistance) then
+      return true
+    end
+    return false
   end
 
   -- 自分の位置座標取得
@@ -545,8 +554,7 @@ Homunculus.new = function(id)
     end
 
     -- 主人から離れすぎた
-    local distance = self:distanceForOwner()
-    if (not self:isAroundOwner()) then
+    if self:isOverFollowDistance() then
       self:stateToFollow()
       self.putsDebug("IDLE_ST -> FOLLOW_ST")
       return
@@ -565,7 +573,7 @@ Homunculus.new = function(id)
     end
 
     -- 主人を見失った？
-    if self:distanceForOwner() > self.followDistance then
+    if self:isOverFollowDistance() then
       self:stateToFollow()
       self.putsDebug("CHASE_ST -> IDLE_ST : MASTER_OUTSIGHT_IN")
       return
@@ -599,7 +607,7 @@ Homunculus.new = function(id)
     end
 
     -- 主人を見失った？
-    if self:distanceForOwner() > self.followDistance then
+    if self:isOverFollowDistance() then
       self:stateToFollow()
       self.putsDebug("ATTACK_ST -> IDLE_ST : MASTER_OUTSIGHT_IN")
       return
