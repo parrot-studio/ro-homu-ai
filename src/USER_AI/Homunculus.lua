@@ -64,16 +64,26 @@ Homunculus.new = function(id)
   -- 設定関係
   -----------------------------
 
+  -- 設定保存
+  this.setSetting = function(self, key, val)
+    self.setting:set(key, val)
+  end
+
+  -- 設定取得
+  this.getSetting = function(self, key)
+    self.setting:get(key)
+  end
+
   -- 先制モード設定セット
   -- valはtrue/falseを想定
   this.setFirstAttack = function(self, val)
-    self.setting:set(SETTING_KEY_FIRST_ATTACK, val)
+    self:setSetting(SETTING_KEY_FIRST_ATTACK, val)
   end
 
   -- 先制モードか？
   -- 未設定ならfalse
   this.isFirstAttack = function(self)
-    if self.setting:get(SETTING_KEY_FIRST_ATTACK) then
+    if self:getSetting(SETTING_KEY_FIRST_ATTACK) then
       return true
     end
     return false
