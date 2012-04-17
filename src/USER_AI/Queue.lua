@@ -11,7 +11,7 @@ Queue.new = function()
   this.add = function(self, data)
     self.list[self.tail] = data
     self.tail = this.tail + 1
-    return this
+    return self
   end
 
   -- 先頭を取得して削除
@@ -28,7 +28,7 @@ Queue.new = function()
   this.unshift = function(self, data)
     self.head = self.head - 1
     self.list[self.head] = data
-    return this
+    return self
   end
 
   -- キューのサイズ
@@ -41,7 +41,7 @@ Queue.new = function()
     self.list = {}
     self.head = 0
     self.tail = 0
-    return this
+    return self
   end
 
   -- デバッグ用print

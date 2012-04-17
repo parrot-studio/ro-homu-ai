@@ -1,5 +1,6 @@
 require "./AI/Const.lua"
 require "./AI/USER_AI/Queue.lua"
+require "./AI/USER_AI/Setting.lua"
 
 -- ホムンクルスの基本動作オブジェクト
 -- 継承先で必要なメソッドのみ書き換えることを想定
@@ -25,7 +26,14 @@ Homunculus.new = function(id)
   FOLLOW_CMD_ST        = 12
   -----------------------------
 
+  -- 予約コマンドバッファサイズ
   RES_COMMAND_SIZE = 10
+
+  -- 設定情報関連定数
+  SETTING_FILE_NAME = './AI/USER_AI/setting.dat' -- 保存ファイル名
+  SETTING_KEY_FIRST_ATTACK = 'firstAttack' -- 先制設定キー
+
+  -----------------------------
 
   local this = {}
   this.id = id -- 自身のid
@@ -33,7 +41,6 @@ Homunculus.new = function(id)
   this.enemy = nil -- ターゲットしている敵のid
   this.owner = GetV(V_OWNER, id) -- 主人のid
   this.commands = Queue.new() -- 予約コマンドバッファ
-  this.firstAttack = false -- 先制モード
   this.distX = -1 -- 目的地:X座標
   this.distY = -1 -- 目的地:Y座標
   this.patrolX = -1 -- パトロール用位置バッファ:X座標
@@ -45,9 +52,31 @@ Homunculus.new = function(id)
   this.searchDistance = 10 -- 索敵範囲
   this.followDistance = 10 -- 主人との最大距離
 
+  -- 設定情報
+  this.setting = Setting.new(SETTING_FILE_NAME)
+
   -- デバッグ出力
   this.putsDebug = function(msg)
     TraceAI(msg)
+  end
+
+  -----------------------------
+  -- 設定関係
+  -----------------------------
+
+  -- 先制モード設定セット
+  -- valはtrue/falseを想定
+  this.setFirstAttack = function(self, val)
+    self.setting:set(SETTING_KEY_FIRST_ATTACK, val)
+  end
+
+  -- 先制モードか？
+  -- 未設定ならfalse
+  this.isFirstAttack = function(self)
+    if self.setting:get(SETTING_KEY_FIRST_ATTACK) then
+      return true
+    end
+    return false
   end
 
   -----------------------------
@@ -331,7 +360,7 @@ Homunculus.new = function(id)
     end
 
     -- 非先制なら何もしない
-    if (not self.firstAttack) then
+    if (not self:isFirstAttack()) then
       return nil
     end
 
@@ -610,7 +639,7 @@ Homunculus.new = function(id)
     -- 主人を見失った？
     if self:isOverFollowDistance() then
       self:stateToFollow()
-      self.putsDebug("ATTACK_ST -> IDLE_ST : MASTER_OUTSIGHT_IN")
+      self.putsDebug("ATTACK_ST -> FOLLOW_ST : MASTER_OUTSIGHT_IN")
       return
     end
 

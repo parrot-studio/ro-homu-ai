@@ -8,6 +8,33 @@
 - あまり複雑な仕組みは入れず、いじりやすくする
 - できるだけ他の人がいじりやすいようにコメントは入れたい・・・が・・・
 
+TODO
+---------------
+- 手動スイッチの再実装
+ - スキルの使用有無
+- フィーリルのスキル自動使用の実装
+ - SPをチェックして適切なスキルを
+ - 他のホムは持ってないのでわからない
+ - いじりたい人は継承したオブジェクトを作ればOK
+ - Filir.luaを参照
+- できるだけとどめを刺さない、汎用的な方法の検討
+ - 高級なAIではいろいろな方法をとっているけども、そこそこの方法で何か・・・
+- デバッグログの差し替え
+ - TraceAIは未だに文字化けしているので
+ - メソッドに切り出してあるから容易ではある
+- コンパイル方法の調査
+- 移動時のスタック回避
+ - 壁際を移動指定すると固まる
+ - 主人と距離が開けば戻ってはくるが・・・
+- スイッチ処理の一般化
+ - 条件とカウンタの部分を抽象化できないか・・・？
+
+実装済み
+---------------
+- 手動スイッチの再実装
+ - 先攻/非先攻
+- 汎用的な設定ファイルの読み書き
+ - reloadのたびにスイッチを入れるのは面倒なので、設定ファイルに状態保存したい
 
 Luaにおけるオブジェクトと継承
 ---------------
@@ -79,4 +106,81 @@ end
 tori = Yakitori.new(homuId) -- 継承したオブジェクト
 tori:useHealSkill() -- 200回復する
 tori.hp -- 300を返す
+
+
+-- super
+
+-- 上記のコードは親クラスのメソッドを上書きしてしまう
+-- superを実行したい場合の方法について検討
+
+A = {} -- 親クラス（的なオブジェクト）
+A.new = function()
+  local this = {}
+
+  this.hello = function(self, str)
+    print("HELLO "..str)
+  end
+
+  return this
+end
+
+B = {} -- 子クラス（的なオブジェクト）
+B.new = function()
+  local this = A.new() -- 親クラスを継承
+
+  this._hello = this.hello -- 親クラスのfunctionを別名で参照
+  this.hello = function(self, str) -- 上書き
+    self:_hello(str) -- 親クラスのhello
+    print("hello "..str..'!!') -- 子クラスの実装
+  end
+
+  return this
+end
+
+a = A.new()
+b = B.new()
+a:hello('parrot') --> HELLO parrot
+b:hello('parrot') --> HELLO parrot\nhello parrot!!
+b:_hello('parrot') --> HELLO parrot
+
+-- ただし、このやり方はBをさらに継承したCでどうするか、という問題がある
+-- 連鎖的な呼び出しをうまく作れるか？
+-- 手動でやろうとするとCがAの実装について知らないといけない
+
+-- では、ルールでの回避はどうか
+-- 例えば、「メソッド名に_を使わない」「overrideしたら 親クラス名_元メソッド名」とする
+-- 直接の親クラスの名前は知っていていい・・・というか、知らないと継承不能であって
+
+-- ということでやり直してみる
+
+B = {} -- 子クラス（的なオブジェクト）
+B.new = function()
+  local this = A.new() -- 親クラスを継承
+
+  this.A_hello = this.hello -- 親クラスのfunctionを別名で参照
+  this.hello = function(self, str) -- 上書き
+    self:A_hello(str) -- 親クラスのhello
+    print("hello "..str..'!!') -- 子クラスの実装
+  end
+
+  return this
+end
+
+C = {} -- 孫クラス（的なオブジェクト）
+C.new = function()
+  local this = B.new() -- BはAの子クラスだが、Aの存在をCは知らない
+
+  this.B_hello = this.hello -- あくまでBのhelloを保存している
+  this.hello = function(self, str)
+    self:B_hello(str) -- Bのhelloを呼んだつもり（内部的にAも呼ばれているのだが）
+    print("Good Bye "..str) -- 孫クラスの実装
+  end
+
+  return this
+end
+
+c = C.new()
+c:hello('parrot') --> HELLO parrot\nhello parrot!!\nGood Bye parrot
+
+-- ｷﾀｺﾚ（ ﾟдﾟ）o彡ﾟ
 ```
