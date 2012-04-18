@@ -61,6 +61,103 @@ Homunculus.new = function(id)
   end
 
   -----------------------------
+  -- ステータス関係
+  -----------------------------
+
+  -- 自身と主人以外のデータは取れない
+
+  -- 現在のHP取得
+  this.getHp = function(self, id)
+    return GetV(V_HP, id)
+  end
+
+  -- 現在のSP取得
+  this.getSp = function(self, id)
+    return GetV(V_SP, id)
+  end
+
+  -- MAXHP取得
+  this.getMaxHp = function(self, id)
+    return GetV(V_MAXHP, id)
+  end
+
+  -- MAXSP取得
+  this.getMaxSp = function(self, id)
+    return GetV(MAXSP, id)
+  end
+
+  -- 現在のHP取得（自分自身）
+  this.getMyHp = function(self)
+    return self:getHp(self.id)
+  end
+
+  -- 現在のSP取得（自分自身）
+  this.getMySp = function(self)
+    return self:getSp(self.id)
+  end
+
+  -- MAXHP取得（自分自身）
+  this.getMyMaxHp = function(self, id)
+    return self:getMaxHp(self.id)
+  end
+
+  -- MAXSP取得（自分自身）
+  this.getMyMaxSp = function(self, id)
+    return self:getMaxSp(self.id)
+  end
+
+  -- 現在のHP取得（主人）
+  this.getOwnerHp = function(self)
+    return self:getHp(self.owner)
+  end
+
+  -- 現在のSP取得（主人）
+  this.getOwnerSp = function(self)
+    return self:getSp(self.owner)
+  end
+
+  -- MAXHP取得（主人）
+  this.getOwnerMaxHp = function(self, id)
+    return self:getMaxHp(self.owner)
+  end
+
+  -- MAXSP取得（主人）
+  this.getOwnerMaxSp = function(self, id)
+    return self:getMaxSp(self.owner)
+  end
+
+  -- IDから対象が何者かを判断する
+  -- 大雑把な分類だけで、具体的な分類は考慮しない
+  -- モンスターかの判別はisMonster()の方を
+  this.checkIdType = function(self, id)
+    if id == nil then
+      return
+    end
+
+    -- プレイヤー
+    if id > 100000 then
+      return 'PLAYER'
+    end
+
+    -- タイプから判別する
+    local t = GetV(V_HOMUNTYPE, id)
+    if (t >= 1 and t <= 16) then
+      -- ホムの種類・・・だけど、スーパーホムは考慮してない
+      return 'HOMUNCULUS'
+    elseif (t >= 46 and t <= 999) then
+      -- NPCの種類・・・だけど、本当はもっと厳密？
+      return 'NPC'
+    elseif (t >= 1001) then
+      -- 1001以上にはプレイヤーもいるけど、idで先に除外されている
+      -- 上界不明
+      return 'MONSTER'
+    else
+      -- 知らないのでnil
+      return
+    end
+  end
+
+  -----------------------------
   -- 設定関係
   -----------------------------
 
@@ -75,18 +172,31 @@ Homunculus.new = function(id)
   end
 
   -- 先制モード設定セット
-  -- valはtrue/falseを想定
-  this.setFirstAttack = function(self, val)
-    self:setSetting(SETTING_KEY_FIRST_ATTACK, val)
+  this.setFirstAttackOn = function(self)
+    self:setSetting(SETTING_KEY_FIRST_ATTACK, 1)
+  end
+
+  -- 先制モード設定セット
+  this.setFirstAttackOff = function(self)
+    self:setSetting(SETTING_KEY_FIRST_ATTACK, 0)
   end
 
   -- 先制モードか？
   -- 未設定ならfalse
   this.isFirstAttack = function(self)
-    if self:getSetting(SETTING_KEY_FIRST_ATTACK) then
+    if self:getSetting(SETTING_KEY_FIRST_ATTACK) == 1 then
       return true
     end
     return false
+  end
+
+  -- 先制モードスイッチ反転
+  this.switchFirstAttack = function(self)
+    if self:isFirstAttack() then
+      self:setFirstAttackOff()
+    else
+      self:setFirstAttackOn()
+    end
   end
 
   -----------------------------
@@ -516,19 +626,19 @@ Homunculus.new = function(id)
     return false
   end
 
-  -- 攻撃
-  -- スキル等は継承クラスでやる
-  -- とりあえずベーシックな実装
+  -- 通常攻撃
   this.attackEnemy = function(self)
     if self.enemy == nil then
       return
     end
+    Attack(self.id, self.enemy)
+  end
 
-    if self:isSkillReady() then
-      self:useSkill()
-    else
-      Attack(self.id, self.enemy)
-    end
+  -- 攻撃
+  -- とりあえず単純な実装
+  -- 継承先で再実装を期待している
+  this.attack = function(self)
+    self:attackEnemy()
   end
 
   -----------------------------
@@ -670,8 +780,14 @@ Homunculus.new = function(id)
     end
 
     -- 攻撃
-    self:attackEnemy()
     self.putsDebug("ATTACK_ST -> ATTACK_ST  : ENERGY_RECHARGED_IN")
+    if self:isSkillReady() then
+      -- スキルが設定されていればスキル
+      self:useSkill()
+    else
+      -- 通常攻撃
+      self:attack()
+    end
   end
 
   -- 追尾状態Action

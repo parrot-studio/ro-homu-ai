@@ -27,13 +27,19 @@ Setting.new = function(name)
   -- ファイルからの読み込み
   -- key, valueのペアをtableに格納して返す
   this.load = function(self)
+    local f = io.open(self.filename, 'r')
+    if f == nil then
+      return {}
+    end
+
     local ret = {}
-    for line in io.lines(this.filename) do
+    for line in f:lines() do
       local k, v = self:parse(line)
       if k ~= nil and v ~= nil then
         ret[k] = v
       end
     end
+    f:close()
     return ret
   end
 
@@ -54,6 +60,7 @@ Setting.new = function(name)
         f:write(k..'='..v..'\n')
       end
     end
+    f:flush ()
     io.close(f)
 
     return self
