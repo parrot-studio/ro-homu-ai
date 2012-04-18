@@ -44,7 +44,7 @@ Filir.new = function(id)
   this.Homunculus_executeMoveCommand = this.executeMoveCommand
   this.executeMoveCommand = function(self, x, y)
     -- 親クラスの処理実行
-    self:Homunculus_executeMoveCommand()
+    self:Homunculus_executeMoveCommand(x, y)
 
     -- スイッチ処理
     self:checkFiratAttackSwitch(x, y)
