@@ -83,7 +83,7 @@ Homunculus.new = function(id)
 
   -- MAXSP取得
   this.getMaxSp = function(self, id)
-    return GetV(MAXSP, id)
+    return GetV(V_MAXSP, id)
   end
 
   -- 現在のHP取得（自分自身）
