@@ -44,7 +44,7 @@ Filir.new = function(id)
   this.checkAutoSkillSwitch = function(self, x, y)
     -- 主人の上 -> 下 -> 上
     local ox, oy = self:getPosition(self.owner)
-    if (x == xy) then
+    if (x == ox) then
       if (self.switchCounterForAutoSkill == 0 and y == oy+1) then
         self.switchCounterForAutoSkill = 1
       elseif (self.switchCounterForAutoSkill == 1 and y == oy-1) then
