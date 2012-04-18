@@ -13,7 +13,7 @@ Filir.new = function(id)
 
   local this = Homunculus.new(id)
   this.switchCounterForFirstAttack = 0 -- 先制スイッチカウンタ
-  this.autoSkill = true -- 自動スキル使用スイッチ
+  this.switchCounterForAutoSkill = 0 -- 自動スキルスイッチカウンタ
 
   this.spRatioForAutoSkill = 0.5 -- これ以上の割合でSPが残っていたら自動スキル使用
 
@@ -40,6 +40,29 @@ Filir.new = function(id)
     end
   end
 
+  -- 自動スキルスイッチチェック
+  this.checkAutoSkillSwitch = function(self, x, y)
+    -- 主人の上 -> 下 -> 上
+    local ox, oy = self:getPosition(self.owner)
+    if (x == xy) then
+      if (self.switchCounterForAutoSkill == 0 and y == oy+1) then
+        self.switchCounterForAutoSkill = 1
+      elseif (self.switchCounterForAutoSkill == 1 and y == oy-1) then
+        self.switchCounterForAutoSkill = 2
+      elseif (self.switchCounterForAutoSkill == 2 and y == oy+1) then
+        -- コマンド完成 -> スイッチ反転
+        self.switchCounterForAutoSkill = 0
+        self:switchAutoSkill()
+      else
+        -- スイッチリセット
+        self.switchCounterForAutoSkill = 0
+      end
+    else
+      -- スイッチリセット
+      self.switchCounterForAutoSkill = 0
+    end
+  end
+
   -- executeMoveCommandをoverride
   this.Homunculus_executeMoveCommand = this.executeMoveCommand
   this.executeMoveCommand = function(self, x, y)
@@ -48,6 +71,7 @@ Filir.new = function(id)
 
     -- スイッチ処理
     self:checkFiratAttackSwitch(x, y)
+    self:checkAutoSkillSwitch(x, y)
   end
 
   -- 残存SPの割合
@@ -59,7 +83,7 @@ Filir.new = function(id)
   -- スイッチがONで、SPが一定以上残っていて、SPに依存する一定の確率で使用
   this.judgeAutoSkillForMoonlight = function(self)
     -- スイッチがOFF
-    if (not self.autoSkill) then
+    if (not self:isAutoSkill()) then
       return false
     end
 

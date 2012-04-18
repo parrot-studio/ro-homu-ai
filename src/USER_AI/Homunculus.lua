@@ -32,6 +32,7 @@ Homunculus.new = function(id)
   -- 設定情報関連定数
   SETTING_FILE_NAME = './AI/USER_AI/setting.dat' -- 保存ファイル名
   SETTING_KEY_FIRST_ATTACK = 'firstAttack' -- 先制設定キー
+  SETTING_KEY_AUTO_SKILL = 'autoSkill' -- 自動スキル設定キー
 
   -----------------------------
 
@@ -196,6 +197,34 @@ Homunculus.new = function(id)
       self:setFirstAttackOff()
     else
       self:setFirstAttackOn()
+    end
+  end
+
+  -- 自動スキル使用設定:ON
+  this.setAutoSkillOn = function(self)
+    self:setSetting(SETTING_KEY_AUTO_SKILL, 1)
+  end
+
+  -- 自動スキル使用設定:OFF
+  this.setAutoSkillOff = function(self)
+    self:setSetting(SETTING_KEY_AUTO_SKILL, 0)
+  end
+
+  -- 自動スキルモードか？
+  -- 未設定ならfalse
+  this.isAutoSkill = function(self)
+    if self:getSetting(SETTING_KEY_AUTO_SKILL) == 1 then
+      return true
+    end
+    return false
+  end
+
+  -- 自動スキルスイッチ反転
+  this.switchAutoSkill = function(self)
+    if self:isAutoSkill() then
+      self:setAutoSkillOff()
+    else
+      self:setAutoSkillOn()
     end
   end
 
