@@ -171,12 +171,12 @@ Homunculus.new = function(id)
     self.setting:get(key)
   end
 
-  -- 先制モード設定セット
+  -- 先制モード設定:ON
   this.setFirstAttackOn = function(self)
     self:setSetting(SETTING_KEY_FIRST_ATTACK, 1)
   end
 
-  -- 先制モード設定セット
+  -- 先制モード設定:OFF
   this.setFirstAttackOff = function(self)
     self:setSetting(SETTING_KEY_FIRST_ATTACK, 0)
   end
