@@ -394,7 +394,10 @@ Homunculus.new = function(id)
 
   -- モンスターかの判定
   this.isMonster = function(self, id)
-    return (IsMonster(id) == 1)
+    if (IsMonster(id) == 1) then
+      return true
+    end
+    return false
   end
 
   -- 攻撃対象取得
