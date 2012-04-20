@@ -17,7 +17,7 @@ Setting.new = function(name)
       return
     end
 
-    local s, e, key, val = str:find("^(.+)=(.+)%c*$")
+    local s, e, key, val = string.find(str, "^(.+)=(.+)$")
     if key == nil or val == nil then
       return
     end
@@ -34,7 +34,7 @@ Setting.new = function(name)
 
     local ret = {}
     for line in f:lines() do
-      local k, v = self:parse(line)
+      local k, v = self:parse(Chomp(line)) -- 改行削除
       if k ~= nil and v ~= nil then
         ret[k] = v
       end
@@ -60,7 +60,6 @@ Setting.new = function(name)
         f:write(k..'='..v..'\n')
       end
     end
-    f:flush ()
     io.close(f)
 
     return self

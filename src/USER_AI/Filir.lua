@@ -2,64 +2,74 @@
 -- Homunculusを継承し、必要な部分を書き換える
 Filir = {}
 Filir.new = function(id)
-
-  ------------------------------------------
-  -- skill id
-  ------------------------------------------
-  S_MOONLIGHT   = 8009
-  S_FLEETMOVE   = 8010
-  S_OVEREDSPEED = 8011
-  ------------------------------------------
+  if id == nil then return end
 
   local this = Homunculus.new(id)
-  this.switchCounterForFirstAttack = 0 -- 先制スイッチカウンタ
-  this.switchCounterForAutoSkill = 0 -- 自動スキルスイッチカウンタ
+  this.className = 'Filir' -- 自身のクラス名
 
   this.spRatioForAutoSkill = 0.5 -- これ以上の割合でSPが残っていたら自動スキル使用
 
-  -- 先制スイッチチェック
-  this.checkFiratAttackSwitch = function(self, x, y)
-    -- 主人の右 -> 左 -> 右
-    local ox, oy = self:getPosition(self.owner)
-    if (y == oy) then
-      if (self.switchCounterForFirstAttack == 0 and x == ox+1) then
-        self.switchCounterForFirstAttack = 1
-      elseif (self.switchCounterForFirstAttack == 1 and x == ox-1) then
-        self.switchCounterForFirstAttack = 2
-      elseif (self.switchCounterForFirstAttack == 2 and x == ox+1) then
-        -- コマンド完成 -> スイッチ反転
-        self.switchCounterForFirstAttack = 0
-        self:switchFirstAttack()
-      else
-        -- スイッチリセット
-        self.switchCounterForFirstAttack = 0
-      end
+  this.moveCommandBuffer = Array.new(3) -- コマンド入力用履歴バッファ
+  this.COMMAND_FIRST_ATTACK = Array.create(3, {'R', 'L', 'R'}) -- 右左右
+  this.COMMAND_AUTO_SKILL   = Array.create(3, {'U', 'D', 'U'}) -- 上下上
+
+  -- 対象からの方向取得
+  -- 対象と隣接しない位置の場合はnil
+  this.aroundDirection = function(self, id, x, y)
+    -- 対象の位置
+    local ox, oy = self:getPosition(id)
+
+    -- 周囲八方向
+    if (x == ox and y == oy+1) then return 'U'
+    elseif (x == ox and y == oy-1) then return 'D'
+    elseif (x == ox+1 and y == oy) then return 'R'
+    elseif (x == ox-1 and y == oy) then return 'L'
+    elseif (x == ox-1 and y == oy+1) then return 'UL'
+    elseif (x == ox+1 and y == oy+1) then return 'UR'
+    elseif (x == ox-1 and y == oy-1) then return 'DL'
+    elseif (x == ox+1 and y == oy-1) then return 'DR'
+    else return end
+  end
+
+  -- 主人からの方向取得
+  -- 主人と隣接しない位置の場合はnil
+  this.aroundDirectionForOwner = function(self, x, y)
+    return self:aroundDirection(self.owner, x, y)
+  end
+
+  -- 移動を使ったコマンドを格納する
+  -- 主人と関係ない位置を指定されたらクリアする
+  this.addMoveCommandBuffer = function(self, x, y)
+    local d = self:aroundDirectionForOwner(x, y)
+    if d then
+      -- コマンドとして有効ならpush
+      self.moveCommandBuffer:push(d)
     else
-      -- スイッチリセット
-      self.switchCounterForFirstAttack = 0
+      -- 他の座標ならコマンドリセット
+      self.moveCommandBuffer:clear()
+    end
+  end
+
+  -- 指定されたコマンドが完成したか？
+  this.isMoveCommandComplete = function(self, com)
+    return self.moveCommandBuffer:isEqual(com)
+  end
+
+  -- 先制スイッチチェック
+  -- コマンドと一致したらスイッチを反転させる
+  this.checkFiratAttackSwitch = function(self)
+    if self:isMoveCommandComplete(self.COMMAND_FIRST_ATTACK) then
+      self:switchFirstAttack()
+      self.moveCommandBuffer:clear()
     end
   end
 
   -- 自動スキルスイッチチェック
-  this.checkAutoSkillSwitch = function(self, x, y)
-    -- 主人の上 -> 下 -> 上
-    local ox, oy = self:getPosition(self.owner)
-    if (x == ox) then
-      if (self.switchCounterForAutoSkill == 0 and y == oy+1) then
-        self.switchCounterForAutoSkill = 1
-      elseif (self.switchCounterForAutoSkill == 1 and y == oy-1) then
-        self.switchCounterForAutoSkill = 2
-      elseif (self.switchCounterForAutoSkill == 2 and y == oy+1) then
-        -- コマンド完成 -> スイッチ反転
-        self.switchCounterForAutoSkill = 0
-        self:switchAutoSkill()
-      else
-        -- スイッチリセット
-        self.switchCounterForAutoSkill = 0
-      end
-    else
-      -- スイッチリセット
-      self.switchCounterForAutoSkill = 0
+  -- コマンドと一致したらスイッチを反転させる
+  this.checkAutoSkillSwitch = function(self)
+    if self:isMoveCommandComplete(self.COMMAND_AUTO_SKILL) then
+      self:switchAutoSkill()
+      self.moveCommandBuffer:clear()
     end
   end
 
@@ -70,8 +80,9 @@ Filir.new = function(id)
     self:Homunculus_executeMoveCommand(x, y)
 
     -- スイッチ処理
-    self:checkFiratAttackSwitch(x, y)
-    self:checkAutoSkillSwitch(x, y)
+    self:addMoveCommandBuffer(x, y)
+    self:checkFiratAttackSwitch()
+    self:checkAutoSkillSwitch()
   end
 
   -- 残存SPの割合
@@ -83,22 +94,16 @@ Filir.new = function(id)
   -- スイッチがONで、SPが一定以上残っていて、SPに依存する一定の確率で使用
   this.judgeAutoSkillForMoonlight = function(self)
     -- スイッチがOFF
-    if (not self:isAutoSkill()) then
-      return false
-    end
+    if (not self:isAutoSkill()) then return false end
 
     -- SPが十分ではない
     local sr = self:leftSpRatio()
-    if sr < self.spRatioForAutoSkill then
-      return false
-    end
+    if sr < self.spRatioForAutoSkill then return false end
 
     -- 残りSP割合に依存するランダム判定
     -- 例：sr=0.9なら90%の確率で使用する
     -- math.random()は0から1のランダム値
-    if math.random() > sr then
-      return false
-    end
+    if math.random() > sr then return false end
 
     return true
   end
@@ -108,7 +113,7 @@ Filir.new = function(id)
   this.attack = function(self)
     -- 条件を満たしていればスキル攻撃する
     if self:judgeAutoSkillForMoonlight() then
-      self:setSkill(S_MOONLIGHT, 1)
+      self:setSkill(SKILL_MOONLIGHT, 1)
       self:useSkill(self.enemy)
     else
       self:attackEnemy()

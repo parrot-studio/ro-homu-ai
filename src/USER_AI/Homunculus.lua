@@ -1,47 +1,17 @@
-require "./AI/Const.lua"
-require "./AI/USER_AI/Queue.lua"
-require "./AI/USER_AI/Setting.lua"
-
 -- ホムンクルスの基本動作オブジェクト
 -- 継承先で必要なメソッドのみ書き換えることを想定
 -- できるだけフラグで動作を変えられるようにしたい
 Homunculus = {}
 Homunculus.new = function(id)
-
-  -----------------------------
-  -- state
-  -----------------------------
-  IDLE_ST              = 0
-  FOLLOW_ST            = 1
-  CHASE_ST             = 2
-  ATTACK_ST            = 3
-  MOVE_CMD_ST          = 4
-  STOP_CMD_ST          = 5
-  ATTACK_OBJECT_CMD_ST = 6
-  ATTACK_AREA_CMD_ST   = 7
-  PATROL_CMD_ST        = 8
-  HOLD_CMD_ST          = 9
-  SKILL_OBJECT_CMD_ST  = 10
-  SKILL_AREA_CMD_ST    = 11
-  FOLLOW_CMD_ST        = 12
-  -----------------------------
-
-  -- 予約コマンドバッファサイズ
-  RES_COMMAND_SIZE = 10
-
-  -- 設定情報関連定数
-  SETTING_FILE_NAME = './AI/USER_AI/setting.dat' -- 保存ファイル名
-  SETTING_KEY_FIRST_ATTACK = 'firstAttack' -- 先制設定キー
-  SETTING_KEY_AUTO_SKILL = 'autoSkill' -- 自動スキル設定キー
-
-  -----------------------------
+  if id == nil then return end
 
   local this = {}
+  this.className = 'Homunculus' -- 自身のクラス名
   this.id = id -- 自身のid
   this.state = IDLE_ST -- 現在の状態
   this.enemy = nil -- ターゲットしている敵のid
   this.owner = GetV(V_OWNER, id) -- 主人のid
-  this.commands = Queue.new() -- 予約コマンドバッファ
+  this.commands = Array.new(RES_COMMAND_SIZE) -- 予約コマンドバッファ
   this.distX = -1 -- 目的地:X座標
   this.distY = -1 -- 目的地:Y座標
   this.patrolX = -1 -- パトロール用位置バッファ:X座標
@@ -57,8 +27,9 @@ Homunculus.new = function(id)
   this.setting = Setting.new(SETTING_FILE_NAME)
 
   -- デバッグ出力
-  this.putsDebug = function(msg)
-    TraceAI(msg)
+  this.putsDebug = function(self, msg)
+    -- Common.luaに定義したグローバル関数
+    PutsDubug(self.className..' :: '..msg)
   end
 
   -----------------------------
@@ -131,12 +102,10 @@ Homunculus.new = function(id)
   -- 大雑把な分類だけで、具体的な分類は考慮しない
   -- モンスターかの判別はisMonster()の方を
   this.checkIdType = function(self, id)
-    if id == nil then
-      return
-    end
+    if id == nil then return end
 
     -- プレイヤー
-    if id > 100000 then
+    if id >= MIN_PLAYERS_ID then
       return 'PLAYER'
     end
 
@@ -162,14 +131,20 @@ Homunculus.new = function(id)
   -- 設定関係
   -----------------------------
 
+  -- 保存用key名
+  -- クラス名で名前空間を分ける
+  this.createSettingKey = function(self, key)
+    return self.className..':'..key
+  end
+
   -- 設定保存
   this.setSetting = function(self, key, val)
-    self.setting:set(key, val)
+    self.setting:set(self:createSettingKey(key), val)
   end
 
   -- 設定取得
   this.getSetting = function(self, key)
-    self.setting:get(key)
+    return self.setting:get(self:createSettingKey(key))
   end
 
   -- 先制モード設定:ON
@@ -185,7 +160,7 @@ Homunculus.new = function(id)
   -- 先制モードか？
   -- 未設定ならfalse
   this.isFirstAttack = function(self)
-    if self:getSetting(SETTING_KEY_FIRST_ATTACK) == 1 then
+    if (self:getSetting(SETTING_KEY_FIRST_ATTACK) == 1) then
       return true
     end
     return false
@@ -213,7 +188,7 @@ Homunculus.new = function(id)
   -- 自動スキルモードか？
   -- 未設定ならfalse
   this.isAutoSkill = function(self)
-    if self:getSetting(SETTING_KEY_AUTO_SKILL) == 1 then
+    if (self:getSetting(SETTING_KEY_AUTO_SKILL) == 1) then
       return true
     end
     return false
@@ -343,6 +318,7 @@ Homunculus.new = function(id)
     if (not self:hasDist()) then
       return -1
     end
+
     local x, y = self:getSelfPosition()
     return self:getDistance(x, y, self.distX, self.distY)
   end
@@ -361,7 +337,7 @@ Homunculus.new = function(id)
 
   -- 自分は立っているだけの状態か？
   this.isStanding = function(self)
-    if GetV(V_MOTION, self.id) == MOTION_STAND then
+    if (GetV(V_MOTION, self.id) == MOTION_STAND) then
       return true
     end
     return false
@@ -369,7 +345,7 @@ Homunculus.new = function(id)
 
   -- 自分は移動中か？
   this.isMoving = function(self)
-    if GetV(V_MOTION, self.id) == MOTION_MOVE then
+    if (GetV(V_MOTION, self.id) == MOTION_MOVE) then
       return true
     end
     return false
@@ -418,20 +394,12 @@ Homunculus.new = function(id)
 
   -- モンスターかの判定
   this.isMonster = function(self, id)
-    if IsMonster(id) == 1 then
-      return true
-    end
-    return false
+    return (IsMonster(id) == 1)
   end
 
   -- 攻撃対象取得
   this.targetFor = function(self, id)
-    local t = GetV(V_TARGET, id)
-    if t then
-      return t
-    else
-      return nil
-    end
+    return GetV(V_TARGET, id)
   end
 
   -- 攻撃対象をリセット
@@ -442,19 +410,16 @@ Homunculus.new = function(id)
 
   -- 対象は何かを攻撃中か？
   this.isAttackMotion = function(self, id)
-    local motion = GetV(V_MOTION, v)
+    local motion = GetV(V_MOTION, id)
     if (motion == MOTION_ATTACK or motion == MOTION_ATTACK2) then
       return true
-    else
-      return false
     end
+    return false
   end
 
   -- 対象から一番近いものをtableから探す
   this.nearestFor = function(self, id, t)
-    if t == nil then
-      return nil
-    end
+    if t == nil then return end
 
     local rsl = nil
     local min = 100
@@ -490,7 +455,7 @@ Homunculus.new = function(id)
     if index > 1 then
       return enemys
     else
-      return nil
+      return
     end
   end
 
@@ -510,7 +475,7 @@ Homunculus.new = function(id)
 
     -- 非先制なら何もしない
     if (not self:isFirstAttack()) then
-      return nil
+      return
     end
 
     -- 敵を探す
@@ -566,7 +531,7 @@ Homunculus.new = function(id)
 
   -- スキル使用準備できているか？
   this.isSkillReady = function(self)
-    if self.skill and self.skillLv then
+    if (self.skill and self.skillLv) then
       return true
     end
     return false
@@ -578,8 +543,9 @@ Homunculus.new = function(id)
     if (not self:isSkillReady()) then
       return
     end
-    SkillObject (self.id , self.skillLv, self.skill, tid)
-    resetSkill()
+
+    SkillObject(self.id, self.skillLv, self.skill, tid)
+    self:resetSkill()
   end
 
   -- 範囲スキル使用
@@ -587,7 +553,7 @@ Homunculus.new = function(id)
   this.useGroundSkill = function(self)
     if (self.isSkillReady() and self:hasDist()) then
       SkillGround(self.id, self.skillLv, self.skill, self.distX, self.distY)
-      resetSkill()
+      self:resetSkill()
     end
   end
 
@@ -619,11 +585,11 @@ Homunculus.new = function(id)
       range = self:attackRange()
     end
 
-    if range >= d then
-      return true
-    else
+    if (range < d) then
       return false
     end
+
+    return true
   end
 
   -- 敵を攻撃可能？
@@ -657,9 +623,7 @@ Homunculus.new = function(id)
 
   -- 通常攻撃
   this.attackEnemy = function(self)
-    if self.enemy == nil then
-      return
-    end
+    if self.enemy == nil then return end
     Attack(self.id, self.enemy)
   end
 
@@ -706,7 +670,7 @@ Homunculus.new = function(id)
 
   -- 待機状態Action
   this.onIdleAction = function(self)
-    self.putsDebug("onIdleAction")
+    self:putsDebug("onIdleAction")
 
     -- 予約コマンド処理
     local cmd = self:getCommand()
@@ -719,7 +683,7 @@ Homunculus.new = function(id)
     local enemy = self:getEnemyForOwner()
     if enemy then
       self:stateToChase(enemy)
-      self.putsDebug("IDLE_ST -> CHASE_ST : MYOWNER_ATTACKED_IN")
+      self:putsDebug("IDLE_ST -> CHASE_ST : MYOWNER_ATTACKED_IN")
       return
     end
 
@@ -727,7 +691,7 @@ Homunculus.new = function(id)
     enemy = self:getEnemyForSelf()
     if enemy then
       self:stateToChase(enemy)
-      self.putsDebug("IDLE_ST -> CHASE_ST : ATTACKED_IN")
+      self:putsDebug("IDLE_ST -> CHASE_ST : ATTACKED_IN")
       return
     end
 
@@ -735,33 +699,33 @@ Homunculus.new = function(id)
     if (not self:isAroundOwner()) then
       self:moveToOwnerPosition()
       self:stateToFollow()
-      self.putsDebug("IDLE_ST -> FOLLOW_ST")
+      self:putsDebug("IDLE_ST -> FOLLOW_ST")
       return
     end
   end
 
   -- 追跡状態Action
   this.onChaseAction = function(self)
-    self.putsDebug("onChaseAction")
+    self:putsDebug("onChaseAction")
 
     -- 敵を見失った？
     if self:isEnemyOutOfSight() then
       self:stateToIdle()
-      self.putsDebug("CHASE_ST -> IDLE_ST : ENEMY_OUTSIGHT_IN")
+      self:putsDebug("CHASE_ST -> IDLE_ST : ENEMY_OUTSIGHT_IN")
       return
     end
 
     -- 主人を見失った？
     if self:isOverFollowDistance() then
       self:stateToFollow()
-      self.putsDebug("CHASE_ST -> IDLE_ST : MASTER_OUTSIGHT_IN")
+      self:putsDebug("CHASE_ST -> IDLE_ST : MASTER_OUTSIGHT_IN")
       return
     end
 
     -- 攻撃範囲に入った？
     if self:isEnemyInAttackSight() then
       self:stateToAttack()
-      self.putsDebug("CHASE_ST -> ATTACK_ST : ENEMY_INATTACKSIGHT_IN")
+      self:putsDebug("CHASE_ST -> ATTACK_ST : ENEMY_INATTACKSIGHT_IN")
       return
     end
 
@@ -769,33 +733,33 @@ Homunculus.new = function(id)
     local x, y = self:getPosition(self.enemy)
     if (self.distX ~= x or self.distY ~= y) then
       self:moveTo(x, y)
-      self.putsDebug("CHASE_ST -> CHASE_ST : DESTCHANGED_IN")
+      self:putsDebug("CHASE_ST -> CHASE_ST : DESTCHANGED_IN")
       return
     end
   end
 
   -- 攻撃状態Action
   this.onAttackAction = function(self)
-    self.putsDebug("onAttackAction")
+    self:putsDebug("onAttackAction")
 
     -- 敵を見失った？
     if self:isEnemyOutOfSight() then
       self:stateToIdle()
-      self.putsDebug("ATTACK_ST -> IDLE_ST : ENEMY_OUTSIGHT_IN")
+      self:putsDebug("ATTACK_ST -> IDLE_ST : ENEMY_OUTSIGHT_IN")
       return
     end
 
     -- 主人を見失った？
     if self:isOverFollowDistance() then
       self:stateToFollow()
-      self.putsDebug("ATTACK_ST -> FOLLOW_ST : MASTER_OUTSIGHT_IN")
+      self:putsDebug("ATTACK_ST -> FOLLOW_ST : MASTER_OUTSIGHT_IN")
       return
     end
 
     -- 敵が死んだ？
     if self:isEnemyDead() then
       self:stateToIdle()
-      self.putsDebug("ATTACK_ST -> IDLE_ST : ENEMY_DEAD")
+      self:putsDebug("ATTACK_ST -> IDLE_ST : ENEMY_DEAD")
       return
     end
 
@@ -804,15 +768,15 @@ Homunculus.new = function(id)
       self:stateToChase(self.enemy)
       local x, y = self:getPosition(self.enemy)
       self:moveTo(x, y)
-      self.putsDebug("ATTACK_ST -> CHASE_ST : ENEMY_MOVED")
+      self:putsDebug("ATTACK_ST -> CHASE_ST : ENEMY_MOVED")
       return
     end
 
     -- 攻撃
-    self.putsDebug("ATTACK_ST -> ATTACK_ST  : ENERGY_RECHARGED_IN")
+    self:putsDebug("ATTACK_ST -> ATTACK_ST  : ENERGY_RECHARGED_IN")
     if self:isSkillReady() then
       -- スキルが設定されていればスキル
-      self:useSkill()
+      self:useSkill(self.enemy)
     else
       -- 通常攻撃
       self:attack()
@@ -821,25 +785,25 @@ Homunculus.new = function(id)
 
   -- 追尾状態Action
   this.onFollowAction = function(self)
-    self.putsDebug("onFollowAction")
+    self:putsDebug("onFollowAction")
 
     -- 主人に追いついた
     if self:isAroundOwner() then
       self:stateToIdle()
-      self.putsDebug("FOLLOW_ST -> IDLE_ST")
+      self:putsDebug("FOLLOW_ST -> IDLE_ST")
       return
     end
 
     -- 自分に問題がなければ移動する
     if self:isStanding() then
       self:moveToOwner()
-      self.putsDebug("FOLLOW_ST -> FOLLOW_ST")
+      self:putsDebug("FOLLOW_ST -> FOLLOW_ST")
     end
   end
 
   -- 移動コマンドAction
   this.onMoveCommandAction = function(self)
-    self.putsDebug("onMoveCommandAction")
+    self:putsDebug("onMoveCommandAction")
 
     -- たどり着いたら待機へ
     if self:isArrive() then
@@ -857,7 +821,7 @@ Homunculus.new = function(id)
 
   -- 範囲攻撃コマンドAction
   this.onAttackAreaCommandAction = function(self)
-    self.putsDebug("onAttackAreaCommandAction")
+    self:putsDebug("onAttackAreaCommandAction")
 
     -- 何かコマンドの目的がよくわからないけど、とりあえずそのまま実装してみる
     -- 範囲内に敵がいればそれを追う的な感じ？
@@ -874,13 +838,13 @@ Homunculus.new = function(id)
 
   -- パトロールコマンドAction
   this.onPatrolCommandAction = function(self)
-    self.putsDebug("onPatrolCommandAction")
+    self:putsDebug("onPatrolCommandAction")
 
     -- 敵がいたら追跡
     local enemy = (self:getEnemyForOwner() or self:getEnemyForSelf())
     if enemy then
       self:stateToChase(enemy)
-      self.putsDebug("PATROL_CMD_ST -> CHASE_ST : ATTACKED_IN")
+      self:putsDebug("PATROL_CMD_ST -> CHASE_ST : ATTACKED_IN")
       return
     end
 
@@ -894,7 +858,7 @@ Homunculus.new = function(id)
   -- 固定コマンドAction
   -- 全く動かないが、敵に攻撃が届くならする
   this.onHoldCommandAction = function(self)
-    self.putsDebug("onHoldCommandAction")
+    self:putsDebug("onHoldCommandAction")
 
     if self.enemy then
       -- 動くつもりはないが、攻撃対象が射程内なら攻撃する
@@ -918,11 +882,9 @@ Homunculus.new = function(id)
 
   -- 範囲スキル使用
   this.onSkillAreaCommandAction = function(self)
-    self.putsDebug("onSkillAriaCommandAction")
+    self:putsDebug("onSkillAriaCommandAction")
 
-    if (not self:isSkillReady()) then
-      return
-    end
+    if (not self:isSkillReady()) then return end
 
     -- 指定ポイントが射程内ならスキル使用
     if self:getDistanceToDist() <= self:skillRange(self.skill) then
@@ -933,12 +895,10 @@ Homunculus.new = function(id)
 
   -- 追尾コマンドAction
   this.onFollowCommandAction = function(self)
-    self.putsDebug("onFollowCommandAction")
+    self:putsDebug("onFollowCommandAction")
 
     -- 主人の近くなら何もしない
-    if self:isAroundOwner() then
-      return
-    end
+    if self:isAroundOwner() then return end
 
     -- デフォルトAIでは「移動中かつ"主人と目的地が3より離れている"場合」目的地を更新している
     -- 面倒だから無条件に更新しちゃう
@@ -954,13 +914,10 @@ Homunculus.new = function(id)
 
   -- 命令予約バッファに追加する
   this.addCommand = function(self, com)
-    if this.commands.size() < RES_COMMAND_SIZE then
-      self.commands:add(com)
-    end
+    self.commands:add(com)
   end
 
   -- 命令予約バッファに優先的に追加する
-  -- バッファサイズを超えても何もしない
   this.addPriorityCommand = function(self, com)
     self.commands:unshift(com)
   end
@@ -977,12 +934,10 @@ Homunculus.new = function(id)
 
   -- 移動コマンド実行
   this.executeMoveCommand = function(self, x, y)
-    self.putsDebug("executeMoveCommand")
+    self:putsDebug("executeMoveCommand")
 
     -- 目的地が同一で移動中なら何もしない
-    if (x == self.distX and y == self.distY and self:isMoving()) then
-      return
-    end
+    if (x == self.distX and y == self.distY and self:isMoving()) then return end
 
     -- 目的地が一定距離以上なら中間点を取って移動
     -- サーバーで遠距離は処理しないため
@@ -1004,7 +959,7 @@ Homunculus.new = function(id)
 
   -- 停止コマンド実行
   this.executeStopCommand = function(self)
-    self.putsDebug("executeStopCommand")
+    self:putsDebug("executeStopCommand")
 
     -- 今の場所で移動停止
     if (not self:isStanding()) then
@@ -1017,7 +972,7 @@ Homunculus.new = function(id)
 
   -- 攻撃コマンド実行
   this.executeAttackObjectCommand = function(self, id)
-    self.putsDebug("executeAttackObjectCommand")
+    self:putsDebug("executeAttackObjectCommand")
 
     -- 対象を追跡
     self:resetSkill()
@@ -1027,7 +982,7 @@ Homunculus.new = function(id)
   -- 範囲攻撃コマンド実行
   -- 範囲攻撃というより、ある範囲内にいる敵を狙う感じ？
   this.executeAttackAreaCommand = function(self, x, y)
-    self.putsDebug("executeAttackAreaCommand")
+    self:putsDebug("executeAttackAreaCommand")
 
     -- 目的値まで移動
     if (x ~= self.distX or y ~= self.distY or (not self:isMoving())) then
@@ -1043,7 +998,7 @@ Homunculus.new = function(id)
 
   -- パトロールコマンド実行
   this.executePatrolCommand = function(self, x, y)
-    self.putsDebug("executePatrolCommand")
+    self:putsDebug("executePatrolCommand")
 
     -- パトロール開始
     self:startPatrol(x, y)
@@ -1052,7 +1007,7 @@ Homunculus.new = function(id)
 
   -- 固定コマンド実行
   this.executeHoldCommand = function(self)
-    self.putsDebug("executeHoldCommand")
+    self:putsDebug("executeHoldCommand")
 
     -- 動作を停止して固定状態へ
     self:resetDist()
@@ -1062,7 +1017,7 @@ Homunculus.new = function(id)
 
   -- スキルコマンド実行
   this.executeSkillObjectCommand = function(self, slv, sid, tid)
-    self.putsDebug("executeSkillObjectCommand")
+    self:putsDebug("executeSkillObjectCommand")
 
     -- スキルセットして追跡
     self:setSkill(sid, slv)
@@ -1071,7 +1026,7 @@ Homunculus.new = function(id)
 
   -- 範囲スキルコマンド実行
   this.executeSkillAreaCommand = function(self, slv, sid, x, y)
-    self.putsDebug("executeSkillAreaCommand")
+    self:putsDebug("executeSkillAreaCommand")
 
     -- 移動してスキル準備
     self:setSkill(sid, slv)
@@ -1081,7 +1036,7 @@ Homunculus.new = function(id)
 
   -- 追尾コマンド実行
   this.executeFollowCommand = function(self)
-    self.putsDebug("executeFollowCommand")
+    self:putsDebug("executeFollowCommand")
 
     -- 待機状態と休息状態を互いに転換させる
     if self.state ~= FOLLOW_CMD_ST then
