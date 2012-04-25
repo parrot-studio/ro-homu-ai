@@ -18,6 +18,7 @@ Homunculus.new = function(id)
   this.patrolY = -1 -- パトロール用位置バッファ:Y座標
   this.skill = nil   -- 使おうとしているスキル
   this.skillLv = nil -- 使おうとしているスキルのLv
+  this.smoothMoveCounter = 0 -- 等速移動用カウンタ
 
   this.aroundDistance = 3  -- 主人との至近距離
   this.searchDistance = 10 -- 索敵範囲
@@ -268,12 +269,79 @@ Homunculus.new = function(id)
     return self:getPosition(self.id)
   end
 
+  -- 主人の位置座標取得
+  this.getOwnerPosition = function(self)
+    return self:getPosition(self.owner)
+  end
+
   -- 二点間の距離取得（ベクトル的な距離ではなく、ゲーム内のセル数基準）
   this.getCellDistance = function(self, x1, y1, x2, y2)
     if (x1 < 0 or x2 < 0 or y1 < 0 or y2 < 0) then
       return -1
     end
     return (math.abs(x1 - x2) + math.abs(y1 - y2))
+  end
+
+  -----------------------------
+  -- モーション関係
+  -----------------------------
+
+  -- 対象はそのモーションをとっているか？
+  this.isMotion = function(self, id, motion)
+    if (GetV(V_MOTION, id) == motion) then
+      return true
+    end
+    return false
+  end
+
+  -- 対象は立っているか？
+  this.isStandMotion = function(self, id)
+    return self:isMotion(id, MOTION_STAND)
+  end
+
+  -- 対象は移動中か？
+  this.isMoveMotion = function(self, id)
+    return self:isMotion(id, MOTION_MOVE)
+  end
+
+  -- 対象は攻撃中か？
+  this.isAttackMotion = function(self, id)
+    return (self:isMotion(id, MOTION_ATTACK) or self:isMotion(id, MOTION_ATTACK2))
+  end
+
+  -- 対象は死亡しているか？
+  this.isDeadMotion = function(self, id)
+    return self:isMotion(id, MOTION_DEAD)
+  end
+
+  -- 対象は被弾しているか？
+  this.isDamageMotion = function(self, id)
+    return self:isMotion(id, MOTION_DAMAGE)
+  end
+
+  -- 対象はかがんでいるか？
+  this.isBenddownMotion = function(self, id)
+    return self:isMotion(id, MOTION_BENDDOWN)
+  end
+
+  -- 対象は座っているか？
+  this.isSitMotion = function(self, id)
+    return self:isMotion(id, MOTION_SIT)
+  end
+
+  -- 対象はスキルを使っているか？
+  this.isSkillMotion = function(self, id)
+    return self:isMotion(id, MOTION_SKILL)
+  end
+
+  -- 対象は詠唱中か？
+  this.isCastingMotion = function(self, id)
+    return self:isMotion(id, MOTION_CASTING)
+  end
+
+  -- 対象は戦闘っぽい行動を取っているか？
+  this.isBattleMotion = function(self, id)
+    return ( self:isAttackMotion(id) or self:isSkillMotion(id) or self:isCastingMotion(id) )
   end
 
   -----------------------------
@@ -330,25 +398,19 @@ Homunculus.new = function(id)
 
   -- 主人へ向かって移動（目的地も更新する）
   this.moveToOwnerPosition = function(self)
-    local x, y = self:getPosition(self.owner)
+    local x, y = self:getOwnerPosition()
     self:setDist(x, y)
     self:moveToOwner()
   end
 
-  -- 自分は立っているだけの状態か？
+  -- 自分は立っている状態か？
   this.isStanding = function(self)
-    if (GetV(V_MOTION, self.id) == MOTION_STAND) then
-      return true
-    end
-    return false
+    return self:isStandMotion(self.id)
   end
 
   -- 自分は移動中か？
   this.isMoving = function(self)
-    if (GetV(V_MOTION, self.id) == MOTION_MOVE) then
-      return true
-    end
-    return false
+    return self:isMoveMotion(self.id)
   end
 
   -- 目的地にたどり着いた？
@@ -388,6 +450,22 @@ Homunculus.new = function(id)
     self:resetDist()
   end
 
+  -- 主人をなめらかに追尾する
+  -- ケミWikiのホム等速移動参照
+  this.moveToOwnerSmoothly = function(self)
+    self.smoothMoveCounter = self.smoothMoveCounter + 1
+    -- 停止時だけでなく、移動中も位置を更新することで、なめらかに追いかける
+    if (self:isStanding() or self:isMoving()) then
+      -- ただし処理（パケット）が増えすぎるので、ある程度抑制を入れる
+      if (self.smoothMoveCounter >= SMOOTH_MOVE_DELAY) then
+        -- おそらくケミWikiの実装を素直に取り入れると動かない
+        -- 「主人の位置」にmoveしようとするため、すでにキャラがいると認識され動かない？
+        self:moveToOwnerPosition()
+        self.smoothMoveCounter = 0
+      end
+    end
+  end
+
   -----------------------------
   -- 索敵関係
   -----------------------------
@@ -411,13 +489,26 @@ Homunculus.new = function(id)
     self:resetDist()
   end
 
-  -- 対象は何かを攻撃中か？
-  this.isAttackMotion = function(self, id)
-    local motion = GetV(V_MOTION, id)
-    if (motion == MOTION_ATTACK or motion == MOTION_ATTACK2) then
-      return true
+  -- フリーなモンスターか？
+  this.isFreeMonster = function(self, id)
+    -- モンスターじゃない
+    if (not self:isMonster(id)) then
+      return false
     end
-    return false
+
+    -- 何もしていない（モンスターNPC対策）
+    -- ただし、通常モンスターでも動かないものを認識しない問題が
+    if self:isStandMotion(id) then
+      return false
+    end
+
+    -- ターゲットが存在し、自身でも主人でもない（横殴り対策）
+    local t = self:targetFor(id)
+    if t ~= nil and t ~= self.id and t ~= self.owner then
+      return false
+    end
+
+    return true
   end
 
   -- 対象から一番近いものをtableから探す
@@ -488,8 +579,8 @@ Homunculus.new = function(id)
     for i,v in ipairs(GetActors()) do
       -- 自身と主人は除外
       if (v ~= self.id and v ~= self.owner) then
-        -- 攻撃していないモンスター（横殴り防止）
-        if self:isMonster(v) and self:targetFor(v) == nil then
+        -- 攻撃してもよいモンスターか？
+        if self:isFreeMonster(v) then
           -- 索敵範囲内
           if self:distanceFor(v) <= self.searchDistance then
             enemys[index] = v
@@ -509,7 +600,7 @@ Homunculus.new = function(id)
       return true
     end
 
-    if GetV(V_MOTION, self.enemy) == MOTION_DEAD then
+    if self:isDeadMotion(self.enemy) then
       return true
     end
 
@@ -699,7 +790,8 @@ Homunculus.new = function(id)
     end
 
     -- やることがなければ主人の元に戻る
-    if (not self:isAroundOwner()) then
+    -- 主人が座っていたら戻らない
+    if (not self:isAroundOwner()) and (not self:isSitMotion(self.owner)) then
       self:moveToOwnerPosition()
       self:stateToFollow()
       self:putsDebug("IDLE_ST -> FOLLOW_ST")
@@ -797,11 +889,9 @@ Homunculus.new = function(id)
       return
     end
 
-    -- 自分に問題がなければ移動する
-    if self:isStanding() then
-      self:moveToOwner()
-      self:putsDebug("FOLLOW_ST -> FOLLOW_ST")
-    end
+    -- 主人を追いかける
+    self:moveToOwnerSmoothly()
+    self:putsDebug("FOLLOW_ST -> FOLLOW_ST")
   end
 
   -- 移動コマンドAction
@@ -1092,39 +1182,36 @@ Homunculus.new = function(id)
     end
   end
 
+  -- stateActionの定義
+  this.stateActions = {}
+  this.stateActions[IDLE_ST] = this.onIdleAction
+  this.stateActions[CHASE_ST] = this.onChaseAction
+  this.stateActions[ATTACK_ST] = this.onAttackAction
+  this.stateActions[FOLLOW_ST] = this.onFollowAction
+  this.stateActions[MOVE_CMD_ST] = this.onMoveCommandAction
+  this.stateActions[STOP_CMD_ST] = this.onStopCommandAction
+  this.stateActions[ATTACK_OBJECT_CMD_ST] = this.onAttackObjectCommandAction
+  this.stateActions[ATTACK_AREA_CMD_ST] = this.onAttackAreaCommandAction
+  this.stateActions[PATROL_CMD_ST] = this.onPatrolCommandAction
+  this.stateActions[HOLD_CMD_ST] = this.onHoldCommandAction
+  this.stateActions[SKILL_OBJECT_CMD_ST] = this.onSkillObjectCommandAction
+  this.stateActions[SKILL_AREA_CMD_ST] = this.onSkillAreaCommandAction
+  this.stateActions[FOLLOW_CMD_ST] = this.onFollowCommandAction
+
+  -- 状態に応じたアクション実行
+  this.executeStateAction = function(self)
+    local sa = self.stateActions[self.state]
+    if sa then
+      sa(self)
+    end
+  end
+
   this.action = function(self)
     -- クライアントから渡されたコマンド読み出しと実行
     self:applyCommandFromClient()
 
-    -- ステータスによる分岐
-    local s = self.state
-    if (s == IDLE_ST) then
-      self:onIdleAction()
-    elseif (s == CHASE_ST) then
-      self:onChaseAction()
-    elseif (s == ATTACK_ST) then
-      self:onAttackAction()
-    elseif (s == FOLLOW_ST) then
-      self:onFollowAction()
-    elseif (s == MOVE_CMD_ST) then
-      self:onMoveCommandAction()
-    elseif (s == STOP_CMD_ST) then
-      self:onStopCommandAction()
-    elseif (s == ATTACK_OBJECT_CMD_ST) then
-      self:onAttackObjectCommandAction()
-    elseif (s == ATTACK_AREA_CMD_ST) then
-      self:onAttackAreaCommandAction()
-    elseif (s == PATROL_CMD_ST) then
-      self:onPatrolCommandAction()
-    elseif (s == HOLD_CMD_ST) then
-      self:onHoldCommandAction()
-    elseif (s == SKILL_OBJECT_CMD_ST) then
-      self:onSkillObjectCommandAction()
-    elseif (s == SKILL_AREA_CMD_ST) then
-      self:onSkillAreaCommandAction()
-    elseif (s == FOLLOW_CMD_ST) then
-      self:onFollowCommandAction()
-    end
+    -- 状態に応じたアクション実行
+    self:executeStateAction()
   end
 
   return this

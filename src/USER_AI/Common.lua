@@ -7,6 +7,7 @@
 AI_BASE_PATH     = './AI/USER_AI/' -- クライアントから見たAIの配置path
 RES_COMMAND_SIZE = 10     -- 予約コマンドバッファサイズ
 MIN_PLAYERS_ID   = 100001 -- プレイヤーIDの最低値（これより大きいIDはプレイヤー）
+SMOOTH_MOVE_DELAY = 4     -- 等速移動時に実際の移動を遅らせる割合(n回ループに1回移動)
 
 -----------------------------
 -- state constant
@@ -44,11 +45,16 @@ FOLLOW_CMD        = 9
 -----------------------------
 -- motion constant
 -----------------------------
-MOTION_STAND    = 0
-MOTION_MOVE     = 1
-MOTION_ATTACK   = 2
-MOTION_DEAD     = 3
-MOTION_ATTACK2  = 9
+MOTION_STAND    = 0  -- 立っている
+MOTION_MOVE     = 1  -- 移動中
+MOTION_ATTACK   = 2  -- 攻撃中
+MOTION_DEAD     = 3  -- 死んで倒れる
+MOTION_DAMAGE   = 4  -- ダメージを受けた時
+MOTION_BENDDOWN = 5  -- かがむ（アイテムを拾う、罠を置く）
+MOTION_SIT      = 6  -- 座っている
+MOTION_SKILL    = 7  -- スキル攻撃中
+MOTION_CASTING  = 8  -- 詠唱
+MOTION_ATTACK2  = 9  -- 攻撃中
 -----------------------------
 
 -----------------------------
