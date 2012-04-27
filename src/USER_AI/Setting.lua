@@ -21,7 +21,7 @@ Setting.new = function(name)
     if key == nil or val == nil then
       return
     end
-    return key, val
+    return string.trim(key), string.trim(val)
   end
 
   -- ファイルからの読み込み
@@ -34,7 +34,7 @@ Setting.new = function(name)
 
     local ret = {}
     for line in f:lines() do
-      local k, v = self:parse(Chomp(line)) -- 改行削除
+      local k, v = self:parse(string.chomp(line)) -- 改行削除
       if k ~= nil and v ~= nil then
         ret[k] = v
       end

@@ -1,13 +1,34 @@
--- あえてグローバルで定義する定数・関数群
--- 特定のクラスに属させるのが難しいもののみをここに
+-- あえてグローバルで定義する定数群
+
+-----------------------------
+-- 本番/テスト切り替え
+-----------------------------
+-- クライアントから見たカスタムAIの配置path
+-- TraceAIが定義されていれば本番とみなす
+if _G['TraceAI'] then
+  AI_BASE_PATH = './AI/USER_AI/'
+else
+  AI_BASE_PATH = ''
+end
 
 -----------------------------
 -- system constant
 -----------------------------
-AI_BASE_PATH     = './AI/USER_AI/' -- クライアントから見たAIの配置path
 RES_COMMAND_SIZE = 10     -- 予約コマンドバッファサイズ
 MIN_PLAYERS_ID   = 100001 -- プレイヤーIDの最低値（これより大きいIDはプレイヤー）
-SMOOTH_MOVE_DELAY = 4     -- 等速移動時に実際の移動を遅らせる割合(n回ループに1回移動)
+
+-----------------------------
+-- file name constant
+-----------------------------
+CONFIG_FILE_NAME = AI_BASE_PATH..'config.txt' -- 全体的な動作を設定しているファイル名（ユーザが書き換える）
+SETTING_FILE_NAME = AI_BASE_PATH..'setting.txt' -- 設定保存ファイル名
+DEBUG_LOG_FILE_NAME = AI_BASE_PATH..'debug.txt' -- デバッグログファイル名
+
+-----------------------------
+-- setting key constant
+-----------------------------
+SETTING_KEY_FIRST_ATTACK = 'FirstAttack' -- 先制設定キー
+SETTING_KEY_AUTO_SKILL   = 'AutoSkill'   -- 自動スキル設定キー
 
 -----------------------------
 -- state constant
@@ -103,34 +124,3 @@ SKILL_MOONLIGHT   = 8009
 SKILL_FLEETMOVE   = 8010
 SKILL_OVEREDSPEED = 8011
 -----------------------------
-
------------------------------
--- setting key constant
------------------------------
-SETTING_FILE_NAME = AI_BASE_PATH..'setting.txt' -- 設定保存ファイル名
-
-SETTING_KEY_FIRST_ATTACK = 'FirstAttack' -- 先制設定キー
-SETTING_KEY_AUTO_SKILL   = 'AutoSkill'   -- 自動スキル設定キー
------------------------------
-
------------------------------
--- Global Function
------------------------------
-
--- デバッグ出力
--- 後々グローバルコンフィグで切り替え可能に
-function PutsDubug(msg)
-  if msg == nil or msg == '' then
-    return
-  end
-  TraceAI(string.format("%q", msg))
-end
-
--- ラストの改行を除去
-function Chomp(s)
-  if s == nil then
-    return
-  end
-  local str, count = string.gsub(s, "[\r\n]+$", "")
-  return str
-end

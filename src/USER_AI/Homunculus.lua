@@ -20,17 +20,36 @@ Homunculus.new = function(id)
   this.skillLv = nil -- 使おうとしているスキルのLv
   this.smoothMoveCounter = 0 -- 等速移動用カウンタ
 
-  this.aroundDistance = 3  -- 主人との至近距離
-  this.searchDistance = 10 -- 索敵範囲
-  this.followDistance = 10 -- 主人との最大距離
+  -- 主人との至近距離
+  this.aroundDistance = Config.AroundDistance
+  -- 索敵範囲
+  this.searchDistance = Config.SearchDistance
+  -- 主人との最大距離
+  this.followDistance = Config.FollowDistance
 
   -- 設定情報
   this.setting = Setting.new(SETTING_FILE_NAME)
 
   -- デバッグ出力
   this.putsDebug = function(self, msg)
-    -- Common.luaに定義したグローバル関数
-    PutsDubug(self.className..' :: '..msg)
+    if msg == nil or msg == '' then
+      return
+    end
+    local log = self.className..' :: '..msg
+
+    if Config.UseTraceAI then
+      TraceAI(log)
+    end
+
+    if (not Config.DebugMode) then
+      return
+    end
+
+    if self.logger == nil then
+      self.logger = Logger.new(DEBUG_LOG_FILE_NAME)
+    end
+
+    self.logger:write(log)
   end
 
   -----------------------------
@@ -148,23 +167,38 @@ Homunculus.new = function(id)
     return self.setting:get(self:createSettingKey(key))
   end
 
+  -- 指定された設定をON
+  this.setSwitchSettingOn = function(self, key)
+    self:setSetting(key, '1')
+  end
+
+  -- 指定された設定をOFF
+  this.setSwitchSettingOff = function(self, key)
+    self:setSetting(key, '0')
+  end
+
+  -- 指定されたスイッチはONか？
+  this.isSwitchSettingOn = function(self, key)
+    if (self:getSetting(key) == '1') then
+      return true
+    end
+    return false
+  end
+
   -- 先制モード設定:ON
   this.setFirstAttackOn = function(self)
-    self:setSetting(SETTING_KEY_FIRST_ATTACK, 1)
+    self:setSwitchSettingOn(SETTING_KEY_FIRST_ATTACK)
   end
 
   -- 先制モード設定:OFF
   this.setFirstAttackOff = function(self)
-    self:setSetting(SETTING_KEY_FIRST_ATTACK, 0)
+    self:setSwitchSettingOff(SETTING_KEY_FIRST_ATTACK)
   end
 
   -- 先制モードか？
   -- 未設定ならfalse
   this.isFirstAttack = function(self)
-    if (self:getSetting(SETTING_KEY_FIRST_ATTACK) == 1) then
-      return true
-    end
-    return false
+    return self:isSwitchSettingOn(SETTING_KEY_FIRST_ATTACK)
   end
 
   -- 先制モードスイッチ反転
@@ -178,21 +212,18 @@ Homunculus.new = function(id)
 
   -- 自動スキル使用設定:ON
   this.setAutoSkillOn = function(self)
-    self:setSetting(SETTING_KEY_AUTO_SKILL, 1)
+    self:setSwitchSettingOn(SETTING_KEY_AUTO_SKILL)
   end
 
   -- 自動スキル使用設定:OFF
   this.setAutoSkillOff = function(self)
-    self:setSetting(SETTING_KEY_AUTO_SKILL, 0)
+    self:setSwitchSettingOff(SETTING_KEY_AUTO_SKILL)
   end
 
   -- 自動スキルモードか？
   -- 未設定ならfalse
   this.isAutoSkill = function(self)
-    if (self:getSetting(SETTING_KEY_AUTO_SKILL) == 1) then
-      return true
-    end
-    return false
+    return self:isSwitchSettingOn(SETTING_KEY_AUTO_SKILL)
   end
 
   -- 自動スキルスイッチ反転
@@ -457,7 +488,7 @@ Homunculus.new = function(id)
     -- 停止時だけでなく、移動中も位置を更新することで、なめらかに追いかける
     if (self:isStanding() or self:isMoving()) then
       -- ただし処理（パケット）が増えすぎるので、ある程度抑制を入れる
-      if (self.smoothMoveCounter >= SMOOTH_MOVE_DELAY) then
+      if (self.smoothMoveCounter >= Config.SmoothMoveDelay) then
         -- おそらくケミWikiの実装を素直に取り入れると動かない
         -- 「主人の位置」にmoveしようとするため、すでにキャラがいると認識され動かない？
         self:moveToOwnerPosition()
@@ -480,7 +511,11 @@ Homunculus.new = function(id)
 
   -- 攻撃対象取得
   this.targetFor = function(self, id)
-    return GetV(V_TARGET, id)
+    local t = GetV(V_TARGET, id)
+    if t == 0 then
+      return
+    end
+    return t
   end
 
   -- 攻撃対象をリセット
@@ -497,8 +532,7 @@ Homunculus.new = function(id)
     end
 
     -- 何もしていない（モンスターNPC対策）
-    -- ただし、通常モンスターでも動かないものを認識しない問題が
-    if self:isStandMotion(id) then
+    if Config.ExcludeStandMonster and self:isStandMotion(id) then
       return false
     end
 

@@ -1,0 +1,10 @@
+-- switch
+DebugMode=0
+UseTraceAI=1
+ExcludeStandMonster=0
+
+-- const
+SmoothMoveDelay=4
+AroundDistance=3
+SearchDistance=10
+FollowDistance=10
