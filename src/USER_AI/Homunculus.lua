@@ -1121,13 +1121,6 @@ Homunculus.new = function(id)
   this.executeMoveCommand = function(self, x, y)
     self:putsDebug("executeMoveCommand")
 
-    -- 自分自身の足下をクリックされたらHoldCommandとみなす
-    local sx, sy = self:getSelfPosition()
-    if (x == sx and y == sx) then
-      self:executeHoldCommand()
-      return
-    end
-
     -- 目的地が同一で移動中なら何もしない
     if (x == self.distX and y == self.distY and self:isMoving()) then
       return
