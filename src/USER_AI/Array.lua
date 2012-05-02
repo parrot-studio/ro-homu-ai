@@ -79,6 +79,12 @@ Array.new = function(size)
     return self.list:isEqual(other)
   end
 
+  -- ランダムに一つ選択する
+  -- 要素は削除しない
+  this.pickup = function(self, other)
+    return self.list:pickup()
+  end
+
   -- デバッグ用print
   this.print = function(self)
     print('maxSize:'..self.maxSize)
@@ -93,7 +99,6 @@ end
 Array.create = function(size, l)
   local a = Array.new(size)
   if a == nil then return end
-
   for i, v in pairs(l) do
     a:add(v)
   end

@@ -83,7 +83,7 @@ Setting.new = function(name)
   -- key, valueのペアが変更されていれば何もしない
   -- 変更された場合、settingの変更とsaveをおこなう
   this.set = function(self, key, val)
-    if key == nil or val == nil then
+    if key == nil then
       return self
     end
 

@@ -94,6 +94,18 @@ Queue.new = function()
     return ret
   end
 
+  -- ランダムに一つ選択する
+  -- 要素は削除しない
+  this.pickup = function(self, other)
+    local s = self:size()
+    if s == 0 then
+      return
+    elseif s == 1 then
+      return self.list[self.head]
+    end
+    return self.list[math.random(s)+self.head-1]
+  end
+
   -- デバッグ用print
   this.print = function(self)
     for i,v in pairs(self.list) do

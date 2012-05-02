@@ -118,6 +118,44 @@ Homunculus.new = function(id)
     return self:getMaxSp(self.owner)
   end
 
+  -- 残存HPの割合%（自分自身）
+  this.leftMyHpRatio = function(self)
+    return (self:getMyHp() / self:getMyMaxHp()) * 100
+  end
+
+  -- 残存SPの割合%（自分自身）
+  this.leftMySpRatio = function(self)
+    return (self:getMySp() / self:getMyMaxSp()) * 100
+  end
+
+  -- 残存HPの割合%（主人）
+  this.leftOwnerHpRatio = function(self)
+    return (self:getOwnerHp() / self:getOwnerMaxHp()) * 100
+  end
+
+  -- 残存SPの割合%（主人）
+  this.leftOwnerSpRatio = function(self)
+    return (self:getOwnerSp() / self:getOwnerMaxSp()) * 100
+  end
+
+  -- 積極的モードか？
+  -- 指定割合よりもHPが残っている
+  this.isPositive = function(self)
+    if self:leftMyHpRatio() > Config.HpRatioForPositive then
+      return true
+    end
+    return false
+  end
+
+  -- 消極的モードか？
+  -- 指定割合よりもHPが減っている
+  this.isNegative = function(self)
+    if self:leftMyHpRatio() < Config.HpRatioForNegative then
+      return true
+    end
+    return false
+  end
+
   -- IDから対象が何者かを判断する
   -- 大雑把な分類だけで、具体的な分類は考慮しない
   -- モンスターかの判別はisMonster()の方を
@@ -595,17 +633,22 @@ Homunculus.new = function(id)
 
   -- 自身の攻撃対象を取得
   this.getEnemyForSelf = function(self)
-    local attackers = self:getAttackerFor(self.id)
-    if attackers then
-      -- 自分を攻撃するもので、一番近いやつ
-      return self:nearestFor(self.id, attackers)
-    end
+    -- 自分を攻撃するもので、一番近いもの
+    return self:nearestFor(self.id, self:getAttackerFor(self.id))
+  end
 
-    -- 非先制なら何もしない
-    if (not self:isFirstAttack()) then
-      return
+  -- 主人と自分を攻撃する敵を取得
+  -- Configで設定された優先順位に従う
+  this.getEnemyForOurs = function(self)
+    if Config.AttackPriorityForSelf then
+      return (self:getEnemyForSelf() or self:getEnemyForOwner())
+    else
+      return (self:getEnemyForOwner() or self:getEnemyForSelf())
     end
+  end
 
+  -- 索敵する
+  this.searchEnemy = function(self)
     -- 敵を探す
     local enemys
     local index = 1
@@ -807,20 +850,35 @@ Homunculus.new = function(id)
       return
     end
 
-    -- 主人の攻撃判定
-    local enemy = self:getEnemyForOwner()
-    if enemy then
-      self:stateToChase(enemy)
-      self:putsDebug("IDLE_ST -> CHASE_ST : MYOWNER_ATTACKED_IN")
-      return
-    end
+    -- 消極的モードならば自分自身への攻撃以外は索敵しない
+    local enemy = nil
+    if (not self:isNegative()) then
+      -- 自分たちへの攻撃判定
+      enemy = self:getEnemyForOurs()
+      if enemy then
+        self:stateToChase(enemy)
+        self:putsDebug("IDLE_ST -> CHASE_ST : ATTACKED_IN")
+        return
+      end
 
-    -- 自身の攻撃判定
-    enemy = self:getEnemyForSelf()
-    if enemy then
-      self:stateToChase(enemy)
-      self:putsDebug("IDLE_ST -> CHASE_ST : ATTACKED_IN")
-      return
+      --　必要ならば索敵
+      -- 先制スイッチ&積極的モード
+      if (self:isFirstAttack() and self:isPositive()) then
+        enemy = self:searchEnemy()
+        if enemy then
+          self:stateToChase(enemy)
+          self:putsDebug("IDLE_ST -> CHASE_ST : ATTACK")
+          return
+        end
+      end
+    else
+      -- 自分自身への攻撃判定
+      enemy = self:getEnemyForSelf()
+      if enemy then
+        self:stateToChase(enemy)
+        self:putsDebug("IDLE_ST -> CHASE_ST : ATTACKED_IN")
+        return
+      end
     end
 
     -- やることがなければ主人の元に戻る
@@ -952,7 +1010,7 @@ Homunculus.new = function(id)
 
     -- 何かコマンドの目的がよくわからないけど、とりあえずそのまま実装してみる
     -- 範囲内に敵がいればそれを追う的な感じ？
-    local enemy = (self:getEnemyForOwner() or self:getEnemyForSelf())
+    local enemy = self:getEnemyForOurs()
     if enemy then
       self:stateToChase(enemy)
       return
@@ -968,7 +1026,7 @@ Homunculus.new = function(id)
     self:putsDebug("onPatrolCommandAction")
 
     -- 敵がいたら追跡
-    local enemy = (self:getEnemyForOwner() or self:getEnemyForSelf())
+    local enemy = self:getEnemyForOurs()
     if enemy then
       self:stateToChase(enemy)
       self:putsDebug("PATROL_CMD_ST -> CHASE_ST : ATTACKED_IN")
@@ -996,7 +1054,7 @@ Homunculus.new = function(id)
       end
     else
       -- 動くつもりはないが、敵は認識しておく
-      local enemy = (self:getEnemyForOwner() or self:getEnemyForSelf())
+      local enemy = self:getEnemyForOurs()
       if enemy then
         self.enemy = enemy
       end
@@ -1063,12 +1121,20 @@ Homunculus.new = function(id)
   this.executeMoveCommand = function(self, x, y)
     self:putsDebug("executeMoveCommand")
 
+    -- 自分自身の足下をクリックされたらHoldCommandとみなす
+    local sx, sy = self:getSelfPosition()
+    if (x == sx and y == sx) then
+      self:executeHoldCommand()
+      return
+    end
+
     -- 目的地が同一で移動中なら何もしない
-    if (x == self.distX and y == self.distY and self:isMoving()) then return end
+    if (x == self.distX and y == self.distY and self:isMoving()) then
+      return
+    end
 
     -- 目的地が一定距離以上なら中間点を取って移動
     -- サーバーで遠距離は処理しないため
-    local sx, sy = self:getSelfPosition()
     if self:getCellDistance(x, y, sx, sy) > 15 then
       -- 元の目的値を次のコマンドとして予約
       self:addPriorityCommand({MOVE_CMD, x, y})
@@ -1195,7 +1261,12 @@ Homunculus.new = function(id)
     elseif (msg[1] == SKILL_AREA_CMD) then
       self:executeSkillAreaCommand(msg[2], msg[3], msg[4], msg[5])
     elseif (msg[1] == FOLLOW_CMD) then
-      self:executeFollowCommand()
+      -- ALT+TのデフォルトはFollowだが、ConfigでHoldに指定できる
+      if Config.FollowCommandToHold then
+        self:executeHoldCommand()
+      else
+        self:executeFollowCommand()
+      end
     end
   end
 

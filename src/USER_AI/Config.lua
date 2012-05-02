@@ -42,6 +42,12 @@ Config = {}
   -- モンスターNPCへの突撃を防げるが、索敵効率が大幅に低下
   conf.ExcludeStandMonster = loader:getBoolean('ExcludeStandMonster')
 
+  -- 攻撃対象検索時に（主人よりも）自身を優先するか
+  conf.AttackPriorityForSelf = loader:getBoolean('AttackPriorityForSelf')
+
+  -- ALT+Tの命令をFollowではなくHoldと解釈するか
+  conf.FollowCommandToHold = loader:getBoolean('FollowCommandToHold')
+
   -- 等速移動時に実際の移動を遅らせる割合(n回ループに1回移動)
   conf.SmoothMoveDelay = loader:getNumber('SmoothMoveDelay', 4)
 
@@ -51,4 +57,9 @@ Config = {}
   conf.SearchDistance = loader:getNumber('SearchDistance', 10)
   -- 主人との最大距離
   conf.FollowDistance = loader:getNumber('FollowDistance', 10)
+
+  -- 積極モードのHP残存率
+  conf.HpRatioForPositive = loader:getNumber('HpRatioForPositive', 40)
+  -- 消極モードのHP残存率
+  conf.HpRatioForNegative = loader:getNumber('HpRatioForNegative', 20)
 end)(Config)

@@ -2,9 +2,13 @@
 DebugMode=0
 UseTraceAI=1
 ExcludeStandMonster=0
+AttackPriorityForSelf=0
+FollowCommandToHold=0
 
 -- const
 SmoothMoveDelay=4
 AroundDistance=3
 SearchDistance=10
 FollowDistance=10
+HpRatioForPositive=40
+HpRatioForNegative=20
